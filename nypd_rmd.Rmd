@@ -1,0 +1,79 @@
+---
+title: "NYPD Shooting Data Analysis"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## NYPD Shooting Incident Data (Historic)
+This is an analysis of shooting data from the NYPD covering from 2006 to present day. Event information as well as data related to suspect and victim demographics are included. Data can be found here: <https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD>
+
+## Question
+
+I'd like to see if there are any trends in when the incidents happen or when murders happen. Another question I have about the data is if there is a relationship between the number of incidents and number of murders. I will tidy and transform the data before I start my analysis and visualization.
+
+## Imports
+
+```{r import data,message=FALSE}
+library(tidyverse)
+library(tinytex)
+library(lubridate)
+url.data = 'https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD'
+nypd.data <- read_csv(url.data)
+```
+## Tidying and Transformation
+For this analysis we are looking at NYPD shooting incident data. The next chunk will clean up and transform the data so that we can look closer at the trend of incidents per month and classify an incident as a murder using a binary column.
+
+```{r tidy, echo=TRUE,message=FALSE}
+# Select important data and add binary column
+nypd.grouped <- nypd.data %>% select(c(OCCUR_DATE,BORO,STATISTICAL_MURDER_FLAG,VIC_AGE_GROUP,VIC_SEX)) %>% mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+nypd.grouped <- nypd.grouped %>% mutate(murder_binary=as.numeric(STATISTICAL_MURDER_FLAG))
+
+# Calculate total number of incidents per date
+nypd.date <- nypd.grouped %>% group_by(OCCUR_DATE) %>% summarize(total = n(), total_murders = sum(murder_binary)) %>% mutate(year = year(OCCUR_DATE))
+
+# Add numeric month column
+nypd.date$month <- nypd.date$OCCUR_DATE %>% month()
+
+# Normalizing the date by giving the same year and day of month
+nypd.date <- nypd.date %>% mutate(date = ymd(paste("2000",month,"01",sep='-')))
+
+nypd.grouped
+```
+## Analysis & Visualization
+Let's see how the incidents break down by month. The histogram contains the total incidents per month for each year in the data set. There seems to be a trend in the summer months and January, possinly pointing to a correlation between high tourist times. 
+
+```{r visualization, fig.height = 3, fig.width =4}
+# Create histogram
+nypd.date %>% ggplot(aes(x=date ,y=total)) + geom_bar(stat = 'sum') + scale_x_date(date_breaks = '1 month', date_labels = "%b") + theme(legend.position = "none")
+```
+
+What about murder's per month? July seems to be an outlier with the most murders compared to the other months.
+
+```{r visualization_murders, fig.height = 3, fig.width = 4}
+# Create histogram
+nypd.date %>% ggplot(aes(x=date ,y=total_murders)) + geom_bar(stat = 'sum') + scale_x_date(date_breaks = '1 month', date_labels = "%b") + theme(legend.position = "none")
+```
+
+## Model
+Is the number of incidents able to predict the number of murders? The data does not show a relation ship between the number of incidents per day and the number of murders.
+
+```{r model, fig.height = 3, fig.width = 4}
+mod <- lm(total ~ total_murders, data = nypd.date)
+nypd.date <- nypd.date %>% mutate(pred = predict(mod))
+summary(mod)
+```
+
+## Conclusion
+The data shows a trend of more shooting incidents in the summer and January, this could be connected to the number of tourists the are in the city as these could be heightened times. July has the highest number of murders while the other months are pretty average with each other, information on why the murder happened might help determine why this is the case. There does not appear to be a relation between the number of incidents and the number of murders based on my dataset. 
+
+
+## Bias
+A potential source for bias is that in my background I am not used to data that is not mostly measurements and numeric data. There are a lot of different variables I did not explore. I make an assumption about when tourists are high in the city due to my view of NYC and summer vacation and New Year's Eve in Times Square. There are many other things that could be looked into that might explain the trends better.
+
+```{r session}
+sessionInfo()
+```
+
